@@ -2,10 +2,12 @@
 """
 MathForStudent Calculation Service
 
-Provides safe basic arithmetic calculations.
+Provides safe basic arithmetic calculations
+for Grade 9 through University students.
 """
 
 import ast
+import math
 import operator
 
 
@@ -20,14 +22,30 @@ OPERATORS = {
     ast.UAdd: operator.pos,
 }
 
+MAX_EXPRESSION_LENGTH = 200
+MAX_AST_NODES = 100
+MAX_ABS_RESULT = 1e100
+MAX_EXPONENT = 100
+
 
 def calculate(expression: str):
     """
-    Safely evaluate a basic arithmetic expression.
+    Safely calculate a basic arithmetic expression.
 
     Supported:
-    Addition, subtraction, multiplication,
-    division, powers and modulo.
+    + Addition
+    - Subtraction
+    * Multiplication
+    / Division
+    ** Powers
+    % Modulo
+    Parentheses and negative numbers
+
+    Examples:
+        10 + 5
+        (20 - 4) / 2
+        5 ** 2
+        -8 + 3
     """
 
     if not isinstance(expression, str):
@@ -35,60 +53,97 @@ def calculate(expression: str):
 
     expression = expression.strip()
 
-    if not expression or len(expression) > 200:
-        raise ValueError("Invalid expression length.")
+    if not expression:
+        raise ValueError("Please enter an expression.")
+
+    if len(expression) > MAX_EXPRESSION_LENGTH:
+        raise ValueError("Expression is too long.")
 
     try:
         tree = ast.parse(expression, mode="eval")
+
+        node_count = sum(1 for _ in ast.walk(tree))
+
+        if node_count > MAX_AST_NODES:
+            raise ValueError("Expression is too complex.")
+
         result = _evaluate(tree.body)
 
-        if isinstance(result, complex):
-            raise ValueError("Complex results are not supported.")
+        if isinstance(result, bool):
+            raise ValueError("Boolean results are not allowed.")
 
         if not isinstance(result, (int, float)):
             raise ValueError("Invalid calculation result.")
 
-        if abs(result) > 1e100:
+        if isinstance(result, float) and not math.isfinite(result):
+            raise ValueError("Result is not a finite number.")
+
+        if abs(result) > MAX_ABS_RESULT:
             raise ValueError("Result is too large.")
 
         return result
 
     except ZeroDivisionError:
         raise ValueError("Cannot divide by zero.") from None
-    except (SyntaxError, TypeError, OverflowError):
-        raise ValueError("Invalid arithmetic expression.") from None
+
+    except (SyntaxError, OverflowError):
+        raise ValueError("Invalid or excessively large expression.") from None
 
 
 def _evaluate(node):
-    """Evaluate only approved arithmetic syntax."""
+    """Evaluate only approved arithmetic operations."""
 
     if isinstance(node, ast.Constant):
-        if isinstance(node.value, bool) or not isinstance(
-            node.value, (int, float)
-        ):
-            raise ValueError("Only numbers are allowed.")
-        return node.value
+        value = node.value
+
+        if isinstance(value, bool):
+            raise ValueError("Boolean values are not allowed.")
+
+        if not isinstance(value, (int, float)):
+            raise ValueError("Only numeric values are allowed.")
+
+        if isinstance(value, int) and abs(value) > MAX_ABS_RESULT:
+            raise ValueError("Number is too large.")
+
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError("Invalid numeric value.")
+
+        return value
 
     if isinstance(node, ast.BinOp):
         operation = OPERATORS.get(type(node.op))
 
         if operation is None:
-            raise ValueError("Unsupported operator.")
+            raise ValueError("Unsupported arithmetic operator.")
 
         left = _evaluate(node.left)
         right = _evaluate(node.right)
 
-        if isinstance(node.op, ast.Pow) and abs(right) > 100:
-            raise ValueError("Exponent is too large.")
+        if isinstance(node.op, ast.Pow):
+            if abs(right) > MAX_EXPONENT:
+                raise ValueError("Exponent is too large.")
 
-        return operation(left, right)
+            if left == 0 and right < 0:
+                raise ZeroDivisionError
+
+        result = operation(left, right)
+
+        if isinstance(result, float) and not math.isfinite(result):
+            raise ValueError("Calculation result is not finite.")
+
+        if abs(result) > MAX_ABS_RESULT:
+            raise ValueError("Calculation result is too large.")
+
+        return result
 
     if isinstance(node, ast.UnaryOp):
         operation = OPERATORS.get(type(node.op))
 
         if operation is None:
-            raise ValueError("Unsupported operator.")
+            raise ValueError("Unsupported unary operator.")
 
         return operation(_evaluate(node.operand))
 
-    raise ValueError("Unsupported expression.")
+    raise ValueError("Unsupported expression syntax.")
+
+
