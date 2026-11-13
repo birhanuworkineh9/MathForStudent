@@ -1,151 +1,63 @@
 import os
+from flask import Flask, jsonify
+from flask_cors import CORS
 
-from pathlib import Path
-from flask import (
-    Flask,
-    request,
-    jsonify,
-    send_from_directory
-)
-from dotenv import load_dotenv
-
-from backend.services.ai_service import solve_with_ai
+from backend.config import Config
+from backend.extensions import db, migrate, limiter
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+def create_app(config_class=Config):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
 
-FRONTEND_DIR = BASE_DIR / "frontend"
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-load_dotenv(BASE_DIR / ".env")
+    db.init_app(app)
+    migrate.init_app(app, db)
+    limiter.init_app(app)
 
-
-app = Flask(
-    __name__,
-    static_folder=str(FRONTEND_DIR),
-    static_url_path=""
-)
-
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
-
-
-@app.route("/")
-def home():
-
-    return send_from_directory(
-        FRONTEND_DIR,
-        "index.html"
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": "*"}}
     )
 
+    from backend.routes.questions import questions_bp
+    app.register_blueprint(questions_bp, url_prefix="/api")
 
-@app.route("/api/health", methods=["GET"])
-def health():
-
-    return jsonify({
-        "status": "success",
-        "message": "MathForStudent backend is running."
-    })
-
-
-@app.route("/api/solve", methods=["POST"])
-def solve():
-
-    question = request.form.get(
-        "question", ""
-    ).strip()
-
-    subject = request.form.get(
-        "subject", ""
-    ).strip()
-
-    education_level = request.form.get(
-        "education_level", ""
-    ).strip()
-
-    photo = request.files.get("photo")
-
-    if not question and not photo:
-
+    @app.get("/")
+    def home():
         return jsonify({
-            "error": "Please enter a question or upload an image."
-        }), 400
+            "app": "MathForStudent",
+            "status": "running",
+            "message": "MathForStudent API is ready."
+        })
 
-    allowed_subjects = [
-        "Mathematics",
-        "Physics",
-        "Chemistry",
-        "Computer Science"
-    ]
-
-    if subject not in allowed_subjects:
-
-        return jsonify({
-            "error": "Please select a valid subject."
-        }), 400
-
-    if not education_level:
-
-        return jsonify({
-            "error": "Please select your education level."
-        }), 400
-
-    if photo:
-
-        allowed_types = [
-            "image/jpeg",
-            "image/png",
-            "image/webp"
-        ]
-
-        if photo.mimetype not in allowed_types:
-
-            return jsonify({
-                "error": "Please upload a JPEG, PNG or WebP image."
-            }), 400
-
-    try:
-
-        answer = solve_with_ai(
-            question=question,
-            subject=subject,
-            education_level=education_level,
-            image=photo
-        )
-
+    @app.get("/api/health")
+    def health():
         return jsonify({
             "status": "success",
-            "answer": answer,
-            "subject": subject,
-            "education_level": education_level
-        }), 200
+            "service": "MathForStudent"
+        })
 
-    except Exception:
-
-        app.logger.exception(
-            "Question solving failed."
-        )
-
+    @app.errorhandler(404)
+    def not_found(error):
         return jsonify({
-            "error": (
-                "Unable to solve your question. "
-                "Please check the server configuration "
-                "and try again."
-            )
-        }), 500
+            "status": "error",
+            "message": "Resource not found."
+        }), 404
 
+    @app.errorhandler(413)
+    def file_too_large(error):
+        return jsonify({
+            "status": "error",
+            "message": "Uploaded file is too large."
+        }), 413
 
-@app.errorhandler(413)
-def file_too_large(error):
-
-    return jsonify({
-        "error": "Uploaded file is too large. Maximum size is 10 MB."
-    }), 413
+    return app
 
 
 if __name__ == "__main__":
-
-    app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=False
-    )
+    application = create_app()
+    application.run(host="0.0.0.0", port=5000, debug=False)
+    
 
