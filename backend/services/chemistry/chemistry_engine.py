@@ -220,3 +220,128 @@ def solve_chemistry(question):
             "and conditions where relevant."
         )
     }
+from functools import reduce
+from math import gcd
+from sympy import Matrix, lcm
+
+
+def balance_equation(equation):
+    """
+    Balance ordinary chemical equations.
+    Example: H2 + O2 -> H2O
+    """
+    equation = equation.replace("→", "->").replace("=", "->")
+
+    if equation.count("->") != 1:
+        raise ValueError("Use one reaction arrow, for example H2 + O2 -> H2O.")
+
+    left_text, right_text = equation.split("->")
+
+    reactants = [x.strip() for x in left_text.split("+")]
+    products = [x.strip() for x in right_text.split("+")]
+
+    if not reactants or not products or any(not x for x in reactants + products):
+        raise ValueError("The chemical equation is incomplete.")
+
+    if len(reactants) + len(products) > 12:
+        raise ValueError("This equation is too large for this balancing engine.")
+
+    formulas = reactants + products
+    compositions = [parse_formula(formula) for formula in formulas]
+
+    elements = sorted({
+        element
+        for composition in compositions
+        for element in composition
+    })
+
+    # Reactants are positive; products are negative.
+    rows = []
+
+    for element in elements:
+        row = []
+
+        for index, composition in enumerate(compositions):
+            count = composition.get(element, 0)
+
+            if index >= len(reactants):
+                count = -count
+
+            row.append(count)
+
+        rows.append(row)
+
+    matrix = Matrix(rows)
+    basis = matrix.nullspace()
+
+    if not basis:
+        raise ValueError("No balancing solution was found.")
+
+    # A one-dimensional nullspace gives a unique basic ratio.
+    if len(basis) != 1:
+        raise ValueError(
+            "This equation has multiple possible balancing solutions."
+        )
+
+    vector = basis[0]
+    common_denominator = 1
+
+    for value in vector:
+        common_denominator = lcm(
+            common_denominator,
+            value.q
+        )
+
+    coefficients = [
+        int(value * common_denominator)
+        for value in vector
+    ]
+
+    common_factor = reduce(gcd, coefficients)
+
+    coefficients = [
+        value // common_factor
+        for value in coefficients
+    ]
+
+    if any(value <= 0 for value in coefficients):
+        raise ValueError("A positive balancing solution was not found.")
+
+    balanced_left = " + ".join(
+        f"{coefficients[i]}{reactants[i]}"
+        for i in range(len(reactants))
+    )
+
+    balanced_right = " + ".join(
+        f"{coefficients[len(reactants) + i]}{products[i]}"
+        for i in range(len(products))
+    )
+
+    return f"{balanced_left} -> {balanced_right}"
+
+
+def solve_balancing(question):
+    text = question.strip()
+
+    if "->" not in text and "→" not in text and "=" not in text:
+        return None
+
+    try:
+        balanced = balance_equation(text)
+
+        return chemistry_result(
+            "Chemical equation balancing",
+            [
+                f"Original equation: {text}",
+                "Count each element on both sides.",
+                "Find the smallest whole-number coefficient ratio.",
+                f"Balanced equation: {balanced}"
+            ],
+            balanced
+        )
+
+    except ValueError as error:
+        return {
+            "status": "error",
+            "message": str(error)
+        }
