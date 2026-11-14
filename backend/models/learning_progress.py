@@ -1,14 +1,11 @@
-from datetime import datetime, timezone
-from ..extensions import db
+from datetime import datetime
+from backend.extensions import db
 
 
 class LearningProgress(db.Model):
     __tablename__ = "learning_progress"
 
-    id = db.Column(
-        db.Integer,
-        primary_key=True
-    )
+    id = db.Column(db.Integer, primary_key=True)
 
     user_id = db.Column(
         db.Integer,
@@ -17,39 +14,20 @@ class LearningProgress(db.Model):
         index=True
     )
 
-    subject = db.Column(
-        db.String(50),
-        nullable=False
-    )
-
-    topic = db.Column(
-        db.String(150),
-        nullable=True
-    )
-
-    questions_answered = db.Column(
+    subject = db.Column(db.String(50), nullable=False)
+    questions_solved = db.Column(
         db.Integer,
         default=0,
         nullable=False
     )
 
-    correct_answers = db.Column(
-        db.Integer,
-        default=0,
-        nullable=False
-    )
-
-    last_studied = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False
+    last_activity = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
     )
 
     user = db.relationship(
         "User",
-        back_populates="learning_progress"
+        back_populates="progress"
     )
-
-    def __repr__(self):
-        return f"<LearningProgress {self.subject}>"
