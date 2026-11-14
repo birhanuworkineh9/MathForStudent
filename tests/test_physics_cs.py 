@@ -1,0 +1,30 @@
+from backend.services.physics import solve_physics
+from backend.services.computer_science import solve_computer_science
+
+
+def test_speed():
+    result = solve_physics(
+        "calculate speed: distance 100 time 20"
+    )
+    assert result["status"] == "success"
+    assert result["answer"] == "5.0 m/s"
+
+
+def test_force():
+    result = solve_physics(
+        "calculate force: mass 10 acceleration 2"
+    )
+    assert result["status"] == "success"
+    assert result["answer"] == "20.0 N"
+
+
+def test_binary_conversion():
+    result = solve_computer_science("binary 1010")
+    assert result["status"] == "success"
+    assert result["answer"] == "10"
+
+
+def test_sorting():
+    result = solve_computer_science("sort 5,2,8,1")
+    assert result["status"] == "success"
+    assert result["answer"] == "[1.0, 2.0, 5.0, 8.0]"
