@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="description"
+          content="MathForStudent helps students solve Mathematics, Physics, Chemistry and Computer Science questions step by step.">
+
+    <meta name="theme-color" content="#123c69">
+
+    <title>MathForStudent - AI Learning Assistant</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+    <header class="header">
+        <div class="container">
+            <h1>MathForStudent</h1>
+            <p>Your Step-by-Step Learning Assistant</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="welcome">
+            <h2>Welcome to MathForStudent</h2>
+            <p>
+                Ask questions and learn Mathematics, Physics,
+                Chemistry and Computer Science.
+            </p>
+        </section>
+
+        <section class="solver-card">
+            <h2>Solve Your Question</h2>
+
+            <form id="questionForm">
+                <label for="subjectSelect">Select Subject</label>
+
+                <select id="subjectSelect" required>
+                    <option value="">Choose a subject</option>
+                    <option value="mathematics">Mathematics</option>
+                    <option value="physics">Physics</option>
+                    <option value="chemistry">Chemistry</option>
+                    <option value="computer science">Computer Science</option>
+                </select>
+
+                <label for="questionInput">Enter Your Question</label>
+
+                <textarea
+                    id="questionInput"
+                    rows="6"
+                    placeholder="Type your academic question here..."
+                ></textarea>
+
+                <label for="photoInput">Upload Question Photo</label>
+
+                <input
+                    type="file"
+                    id="photoInput"
+                    accept="image/png,image/jpeg,image/webp"
+                >
+
+                <div id="photoPreview" class="photo-preview"></div>
+
+                <button type="submit" id="solveButton">
+                    Solve My Question
+                </button>
+
+                <p id="loadingMessage" class="loading hidden">
+                    Processing your question...
+                </p>
+
+                <p id="errorMessage" class="error hidden"></p>
+            </form>
+        </section>
+
+        <section id="answerSection" class="answer-card hidden">
+            <h2>Solution</h2>
+            <div id="answerContent"></div>
+        </section>
+
+        <section class="features">
+            <h2>Supported Subjects</h2>
+
+            <div class="feature-grid">
+                <article>Mathematics</article>
+                <article>Physics</article>
+                <article>Chemistry</article>
+                <article>Computer Science</article>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>MathForStudent | Learn step by step</p>
+    </footer>
+
+    <script src="/js/app.js" defer></script>
+</body>
+</html>
