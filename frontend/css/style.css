@@ -1,0 +1,159 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f2f5f9;
+    color: #172b4d;
+    line-height: 1.6;
+}
+
+.container {
+    width: min(92%, 900px);
+    margin: auto;
+}
+
+.header {
+    background: #123c69;
+    color: white;
+    padding: 25px 0;
+    text-align: center;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 30px;
+}
+
+.header p {
+    margin-bottom: 0;
+}
+
+.welcome {
+    padding: 25px 0;
+    text-align: center;
+}
+
+.solver-card,
+.answer-card {
+    background: white;
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    box-shadow: 0 3px 15px rgba(0, 0, 0, 0.07);
+}
+
+label {
+    display: block;
+    font-weight: bold;
+    margin-top: 18px;
+    margin-bottom: 7px;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    font-size: 16px;
+    background: white;
+}
+
+textarea {
+    resize: vertical;
+}
+
+button {
+    width: 100%;
+    border: none;
+    border-radius: 7px;
+    background: #123c69;
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 14px;
+    margin-top: 20px;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.photo-preview {
+    margin-top: 12px;
+}
+
+.photo-preview img {
+    max-width: 100%;
+    max-height: 280px;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
+.hidden {
+    display: none;
+}
+
+.loading {
+    color: #123c69;
+    text-align: center;
+}
+
+.error {
+    color: #b42318;
+    background: #fff0ef;
+    padding: 10px;
+    border-radius: 7px;
+}
+
+.answer-card {
+    overflow-wrap: anywhere;
+}
+
+.answer-block {
+    padding: 12px;
+    background: #f2f5f9;
+    border-radius: 7px;
+    margin: 10px 0;
+}
+
+.answer-block h3 {
+    margin-top: 0;
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.feature-grid article {
+    background: white;
+    border-radius: 8px;
+    padding: 18px;
+    text-align: center;
+    font-weight: bold;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    color: #52647a;
+}
+
+@media (max-width: 600px) {
+    .solver-card,
+    .answer-card {
+        padding: 17px;
+    }
+
+    .feature-grid {
+        grid-template-columns: 1fr;
+    }
+}
