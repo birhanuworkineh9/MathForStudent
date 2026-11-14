@@ -1,14 +1,11 @@
-from datetime import datetime, timezone
-from ..extensions import db
+from datetime import datetime
+from backend.extensions import db
 
 
 class Question(db.Model):
     __tablename__ = "questions"
 
-    id = db.Column(
-        db.Integer,
-        primary_key=True
-    )
+    id = db.Column(db.Integer, primary_key=True)
 
     user_id = db.Column(
         db.Integer,
@@ -17,34 +14,16 @@ class Question(db.Model):
         index=True
     )
 
-    subject = db.Column(
-        db.String(50),
-        nullable=False
-    )
+    subject = db.Column(db.String(50), nullable=False)
+    question_text = db.Column(db.Text, nullable=False)
+    image_path = db.Column(db.String(500), nullable=True)
 
-    question_text = db.Column(
-        db.Text,
-        nullable=False
-    )
-
-    image_path = db.Column(
-        db.String(500),
-        nullable=True
-    )
-
-    answer = db.Column(
-        db.Text,
-        nullable=True
-    )
-
-    explanation = db.Column(
-        db.Text,
-        nullable=True
-    )
+    answer = db.Column(db.Text, nullable=True)
+    explanation = db.Column(db.Text, nullable=True)
 
     created_at = db.Column(
-        db.DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
+        db.DateTime,
+        default=datetime.utcnow,
         nullable=False
     )
 
@@ -52,6 +31,3 @@ class Question(db.Model):
         "User",
         back_populates="questions"
     )
-
-    def __repr__(self):
-        return f"<Question {self.id}: {self.subject}>"
