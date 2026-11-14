@@ -1,161 +1,121 @@
-import re
+from flask import Blueprint, request, jsonify, session
+from backend.extensions import db
+from backend.models import User
+from backend.security.validation import validate_registration
 
-from flask import Blueprint, request, jsonify
-from flask_login import (
-    login_user,
-    logout_user,
-    current_user,
-    login_required
-)
-
-from ..extensions import db
-from ..models.user import User
+auth_bp = Blueprint("auth", __name__)
 
 
-auth_bp = Blueprint(
-    "auth",
-    __name__,
-    url_prefix="/api/auth"
-)
-
-
-def valid_email(email):
-    pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
-    return bool(re.match(pattern, email))
-
-
-def user_response(user):
-    return {
-        "id": user.id,
-        "full_name": user.full_name,
-        "email": user.email,
-        "education_level": user.education_level
-    }
-
-
-@auth_bp.route("/signup", methods=["POST"])
-def signup():
+@auth_bp.post("/register")
+def register():
     data = request.get_json(silent=True) or {}
 
     full_name = str(data.get("full_name", "")).strip()
     email = str(data.get("email", "")).strip().lower()
-    password = data.get("password", "")
-    level = str(
-        data.get("education_level", "Grade 9")
-    ).strip()
+    password = str(data.get("password", ""))
 
-    if not full_name or not email or not password:
+    valid, error = validate_registration(
+        full_name,
+        email,
+        password
+    )
+
+    if not valid:
         return jsonify({
-            "error": "All required fields must be provided."
+            "status": "error",
+            "message": error
         }), 400
 
-    if len(full_name) > 120:
+    if User.query.filter_by(email=email).first():
         return jsonify({
-            "error": "Full name is too long."
-        }), 400
-
-    if len(email) > 254 or not valid_email(email):
-        return jsonify({
-            "error": "Enter a valid email address."
-        }), 400
-
-    if not isinstance(password, str) or len(password) < 8:
-        return jsonify({
-            "error": "Password must be at least 8 characters."
-        }), 400
-
-    allowed_levels = [
-        "Grade 9",
-        "Grade 10",
-        "Grade 11",
-        "Grade 12",
-        "University",
-        "Self-Learner"
-    ]
-
-    if level not in allowed_levels:
-        return jsonify({
-            "error": "Invalid education level."
-        }), 400
-
-    existing_user = User.query.filter_by(
-        email=email
-    ).first()
-
-    if existing_user:
-        return jsonify({
-            "error": "This email is already registered."
+            "status": "error",
+            "message": "An account with this email already exists."
         }), 409
 
     user = User(
         full_name=full_name,
-        email=email,
-        education_level=level
+        email=email
     )
-
     user.set_password(password)
 
-    try:
-        db.session.add(user)
-        db.session.commit()
+    db.session.add(user)
+    db.session.commit()
 
-        login_user(user)
+    session.clear()
+    session["user_id"] = user.id
 
-        return jsonify({
-            "message": "Account created successfully.",
-            "user": user_response(user)
-        }), 201
-
-    except Exception:
-        db.session.rollback()
-
-        return jsonify({
-            "error": "Account creation failed."
-        }), 500
+    return jsonify({
+        "status": "success",
+        "message": "Account created successfully."
+    }), 201
 
 
-@auth_bp.route("/login", methods=["POST"])
+@auth_bp.post("/login")
 def login():
     data = request.get_json(silent=True) or {}
 
     email = str(data.get("email", "")).strip().lower()
-    password = data.get("password", "")
+    password = str(data.get("password", ""))
 
-    if not email or not isinstance(password, str) or not password:
-        return jsonify({
-            "error": "Email and password are required."
-        }), 400
-
-    user = User.query.filter_by(
-        email=email
-    ).first()
+    user = User.query.filter_by(email=email).first()
 
     if not user or not user.check_password(password):
         return jsonify({
-            "error": "Incorrect email or password."
+            "status": "error",
+            "message": "Invalid email or password."
         }), 401
 
-    login_user(user)
+    session.clear()
+    session["user_id"] = user.id
 
     return jsonify({
+        "status": "success",
         "message": "Login successful.",
-        "user": user_response(user)
-    }), 200
+        "user": {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email": user.email
+        }
+    })
 
 
-@auth_bp.route("/logout", methods=["POST"])
-@login_required
+@auth_bp.post("/logout")
 def logout():
-    logout_user()
+    session.clear()
 
     return jsonify({
-        "message": "Logout successful."
-    }), 200
+        "status": "success",
+        "message": "Logged out successfully."
+    })
 
 
-@auth_bp.route("/me", methods=["GET"])
-@login_required
-def get_current_user():
+@auth_bp.get("/me")
+def current_user():
+    user_id = session.get("user_id")
+
+    if not user_id:
+        return jsonify({
+            "status": "error",
+            "message": "Authentication required."
+        }), 401
+
+    user = db.session.get(User, user_id)
+
+    if not user:
+        session.clear()
+        return jsonify({
+            "status": "error",
+            "message": "User not found."
+        }), 404
+
     return jsonify({
-        "user": user_response(current_user)
-    }), 200
+        "status": "success",
+        "user": {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "education_level": user.education_level
+        }
+    })
+
+    
