@@ -1,66 +1,41 @@
 
-"""
-MathForStudent Input Validation
-
-Validates student registration and question inputs.
-"""
-
 import re
 
-
-ALLOWED_SUBJECTS = {
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Computer Science"
+VALID_SUBJECTS = {
+    "mathematics",
+    "physics",
+    "chemistry",
+    "computer science"
 }
 
 
-def validate_email(email: str) -> bool:
-    """Check whether an email address has a valid format."""
+def validate_question(subject, question):
+    if subject not in VALID_SUBJECTS:
+        return False, "Invalid subject."
 
-    if not isinstance(email, str):
-        return False
+    if not question or not question.strip():
+        return False, "Question is required."
 
-    email = email.strip()
+    if len(question) > 15000:
+        return False, "Question is too long."
 
-    pattern = r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
-
-    return bool(re.fullmatch(pattern, email))
-
-
-def validate_full_name(full_name: str) -> bool:
-    """Validate a student's full name."""
-
-    if not isinstance(full_name, str):
-        return False
-
-    full_name = full_name.strip()
-
-    return 2 <= len(full_name) <= 120
+    return True, None
 
 
-def validate_password(password: str) -> bool:
-    """Check minimum password requirements."""
+def validate_registration(full_name, email, password):
+    if not full_name or len(full_name.strip()) < 2:
+        return False, "Enter your full name."
 
-    return (
-        isinstance(password, str)
-        and len(password) >= 8
-        and len(password) <= 128
-    )
+    if not email or not re.fullmatch(
+        r"[^@\s]+@[^@\s]+\.[^@\s]+",
+        email
+    ):
+        return False, "Enter a valid email address."
 
+    if not password or len(password) < 10:
+        return False, "Password must contain at least 10 characters."
 
-def validate_subject(subject: str) -> bool:
-    """Check whether the selected subject is supported."""
+    if len(password) > 128:
+        return False, "Password is too long."
 
-    return subject in ALLOWED_SUBJECTS
-
-
-def validate_question(question: str) -> bool:
-    """Check whether question text is acceptable."""
-
-    return (
-        isinstance(question, str)
-        and 1 <= len(question.strip()) <= 20000
-  )
-  
+    return True, None
