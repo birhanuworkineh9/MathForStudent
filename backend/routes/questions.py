@@ -1,152 +1,120 @@
- 
+from flask import Blueprint, request, jsonify, current_app
+from werkzeug.utils import secure_filename
+from PIL import Image
 import os
 
-from flask import Blueprint, request, jsonify, current_app
-from flask_login import current_user
-from werkzeug.utils import secure_filename
-
-from ..extensions import db
-from ..models import Question
-from ..services.ai_service import solve_with_ai
+from backend.services.mathematics import solve_mathematics
+from backend.services.chemistry import solve_chemistry
+from backend.services.physics import solve_physics
+from backend.services.computer_science import solve_computer_science
+from backend.services.ai_service import explain_with_ai
 
 
-questions_bp = Blueprint(
-    "questions",
-    __name__,
-    url_prefix="/api/questions"
-)
+questions_bp = Blueprint("questions", __name__)
 
-ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
-ALLOWED_SUBJECTS = {
-    "Mathematics",
-    "Physics",
-    "Chemistry",
-    "Computer Science"
+ENGINE_MAP = {
+    "mathematics": solve_mathematics,
+    "chemistry": solve_chemistry,
+    "physics": solve_physics,
+    "computer science": solve_computer_science
 }
 
 
-def allowed_file(filename):
-    return (
-        "." in filename
-        and filename.rsplit(".", 1)[1].lower()
-        in ALLOWED_EXTENSIONS
+@questions_bp.post("/solve")
+def solve_question():
+    subject = request.form.get("subject", "").strip().lower()
+    question = request.form.get("question", "").strip()
+
+    if subject not in ENGINE_MAP:
+        return jsonify({
+            "status": "error",
+            "message": "Select a valid subject."
+        }), 400
+
+    if not question:
+        return jsonify({
+            "status": "error",
+            "message": "Enter your question."
+        }), 400
+
+    engine = ENGINE_MAP[subject]
+    engine_result = engine(question)
+
+    if engine_result.get("status") == "error":
+        return jsonify(engine_result), 400
+
+    if engine_result.get("status") in (
+        "needs_information",
+        "needs_ai"
+    ):
+        return jsonify(engine_result), 200
+
+    ai_result = explain_with_ai(
+        question,
+        subject,
+        engine_result
     )
 
+    return jsonify({
+        "status": "success",
+        "subject": subject,
+        "calculation": engine_result,
+        "explanation": ai_result.get("explanation"),
+        "ai_status": ai_result.get("status")
+    }), 200
 
-@questions_bp.route("/solve", methods=["POST"])
-def solve_question():
-    """Solve a typed or uploaded student question."""
 
-    question_text = request.form.get(
-        "question",
-        ""
-    ).strip()
-
-    subject = request.form.get(
-        "subject",
-        ""
-    ).strip()
-
-    education_level = request.form.get(
-        "education_level",
-        "Grade 9"
-    ).strip()
-
-    image = request.files.get("image")
-
-    if subject not in ALLOWED_SUBJECTS:
+@questions_bp.post("/upload-question")
+def upload_question():
+    if "photo" not in request.files:
         return jsonify({
             "status": "error",
-            "message": "Please select a valid subject."
+            "message": "No image was uploaded."
         }), 400
 
-    if not question_text and (
-        image is None or not image.filename
-    ):
+    photo = request.files["photo"]
+
+    if not photo.filename:
         return jsonify({
             "status": "error",
-            "message": "Enter a question or upload an image."
+            "message": "Select an image."
         }), 400
 
-    image_path = None
+    extension = photo.filename.rsplit(".", 1)[-1].lower()
 
-    if image and image.filename:
-        if not allowed_file(image.filename):
-            return jsonify({
-                "status": "error",
-                "message": "Unsupported image format."
-            }), 400
+    if extension not in current_app.config["ALLOWED_EXTENSIONS"]:
+        return jsonify({
+            "status": "error",
+            "message": "Unsupported image type."
+        }), 400
 
-        filename = secure_filename(image.filename)
+    try:
+        image = Image.open(photo.stream)
+        image.verify()
+        photo.stream.seek(0)
 
-        upload_folder = current_app.config.get(
-            "UPLOAD_FOLDER",
-            os.path.join(
-                current_app.instance_path,
-                "uploads"
-            )
-        )
+        filename = secure_filename(photo.filename)
 
-        os.makedirs(upload_folder, exist_ok=True)
+        # Use a unique filename to avoid overwriting uploads.
+        import uuid
+        filename = f"{uuid.uuid4().hex}_{filename}"
 
-        image_path = os.path.join(
-            upload_folder,
+        destination = os.path.join(
+            current_app.config["UPLOAD_FOLDER"],
             filename
         )
 
-        image.save(image_path)
-
-        # Reopen the saved image for the AI service.
-        image.stream = open(image_path, "rb")
-
-    try:
-        answer = solve_with_ai(
-            question=question_text,
-            subject=subject,
-            education_level=education_level,
-            image=image
-        )
-
-        user_id = (
-            current_user.id
-            if current_user.is_authenticated
-            else None
-        )
-
-        question_record = Question(
-            user_id=user_id,
-            subject=subject,
-            question_text=question_text or "Uploaded image question",
-            image_path=image_path,
-            answer=answer,
-            explanation=answer
-        )
-
-        db.session.add(question_record)
-        db.session.commit()
+        photo.save(destination)
 
         return jsonify({
             "status": "success",
-            "message": "Question solved successfully.",
-            "question_id": question_record.id,
-            "subject": subject,
-            "answer": answer
-        }), 200
+            "message": "Image uploaded successfully.",
+            "filename": filename
+        }), 201
 
     except Exception:
-        db.session.rollback()
-
-        current_app.logger.exception(
-            "Question solving failed."
-        )
-
         return jsonify({
             "status": "error",
-            "message": "Unable to solve the question. Please try again."
-        }), 500
-
-    finally:
-        if image and not image.stream.closed:
-            image.stream.close()
-       
+            "message": "The uploaded file is not a valid image."
+        }), 400
