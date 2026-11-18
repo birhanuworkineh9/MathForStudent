@@ -1,8 +1,5 @@
-"""
-MathForStudent - Flask Extensions
 
-Initializes shared Flask extensions.
-"""
+"""Shared Flask extensions for MathForStudent."""
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -11,16 +8,16 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 
-# Database
+# Database connection and ORM
 db = SQLAlchemy()
 
-# Database migrations
+# Database schema migrations
 migrate = Migrate()
 
-# User login management
+# User session management
 login_manager = LoginManager()
 login_manager.login_view = "auth.login"
-login_manager.login_message = "Please log in to access this page."
+login_manager.login_message = "Please log in to continue."
 login_manager.login_message_category = "info"
 
 # Request rate limiting
@@ -29,5 +26,3 @@ limiter = Limiter(
     default_limits=[],
     storage_uri="memory://"
 )
-
-
