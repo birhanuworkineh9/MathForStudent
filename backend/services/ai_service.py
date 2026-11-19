@@ -1,5 +1,3 @@
-from openai import OpenAI
-
 
 def explain_with_ai(question, subject, engine_result=None):
     from flask import current_app
@@ -18,6 +16,12 @@ def explain_with_ai(question, subject, engine_result=None):
         }
 
     try:
+        # Import only when AI is actually needed.
+        from openai import OpenAI
+
+        if not model:
+            model = "gpt-4.1-mini"
+
         client = OpenAI(api_key=api_key)
 
         system_prompt = """
@@ -73,15 +77,27 @@ Rules:
             "explanation": response.choices[0].message.content
         }
 
+    except ImportError:
+        current_app.logger.warning(
+            "OpenAI package is not installed."
+        )
+        return {
+            "status": "needs_ai",
+            "message": (
+                "The AI package is not installed in this environment."
+            ),
+            "engine_result": engine_result
+        }
+
     except Exception:
+        current_app.logger.exception(
+            "AI service request failed."
+        )
         return {
             "status": "error",
             "message": (
                 "The AI service could not process this request. "
                 "Check the API configuration and try again."
-            )
+            ),
+            "engine_result": engine_result
         }
-
-    
-
-                
