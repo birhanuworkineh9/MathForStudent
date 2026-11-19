@@ -1,121 +1,137 @@
-from flask import Blueprint, request, jsonify, session
+"""Authentication API routes for MathForStudent."""
+
+from flask import Blueprint, request, jsonify
+from flask_login import login_user, logout_user, current_user
+
 from backend.extensions import db
 from backend.models import User
-from backend.security.validation import validate_registration
+from backend.security.validators import validate_registration
+
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def user_response(user):
+    return {
+        "id": user.id,
+        "full_name": user.full_name,
+        "email": user.email,
+        "education_level": user.education_level,
+    }
 
 
 @auth_bp.post("/register")
 def register():
     data = request.get_json(silent=True) or {}
 
-    full_name = str(data.get("full_name", "")).strip()
-    email = str(data.get("email", "")).strip().lower()
-    password = str(data.get("password", ""))
+    full_name = data.get("full_name", "")
+    email = data.get("email", "")
+    password = data.get("password", "")
 
     valid, error = validate_registration(
         full_name,
         email,
-        password
+        password,
     )
 
     if not valid:
         return jsonify({
             "status": "error",
-            "message": error
+            "message": error,
         }), 400
+
+    full_name = full_name.strip()
+    email = email.strip().lower()
 
     if User.query.filter_by(email=email).first():
         return jsonify({
             "status": "error",
-            "message": "An account with this email already exists."
+            "message": "An account with this email already exists.",
         }), 409
 
     user = User(
         full_name=full_name,
-        email=email
+        email=email,
     )
     user.set_password(password)
 
-    db.session.add(user)
-    db.session.commit()
-
-    session.clear()
-    session["user_id"] = user.id
+    try:
+        db.session.add(user)
+        db.session.commit()
+        login_user(user)
+    except Exception:
+        db.session.rollback()
+        return jsonify({
+            "status": "error",
+            "message": "Account creation failed. Please try again.",
+        }), 500
 
     return jsonify({
         "status": "success",
-        "message": "Account created successfully."
+        "message": "Account created successfully.",
+        "user": user_response(user),
     }), 201
 
 
 @auth_bp.post("/login")
 def login():
+    if current_user.is_authenticated:
+        return jsonify({
+            "status": "success",
+            "message": "You are already logged in.",
+            "user": user_response(current_user),
+        }), 200
+
     data = request.get_json(silent=True) or {}
 
-    email = str(data.get("email", "")).strip().lower()
-    password = str(data.get("password", ""))
+    email = data.get("email", "")
+    password = data.get("password", "")
 
-    user = User.query.filter_by(email=email).first()
+    if not isinstance(email, str) or not isinstance(password, str):
+        return jsonify({
+            "status": "error",
+            "message": "Invalid email or password.",
+        }), 400
+
+    user = User.query.filter_by(
+        email=email.strip().lower()
+    ).first()
 
     if not user or not user.check_password(password):
         return jsonify({
             "status": "error",
-            "message": "Invalid email or password."
+            "message": "Invalid email or password.",
         }), 401
 
-    session.clear()
-    session["user_id"] = user.id
+    login_user(user)
 
     return jsonify({
         "status": "success",
         "message": "Login successful.",
-        "user": {
-            "id": user.id,
-            "full_name": user.full_name,
-            "email": user.email
-        }
-    })
+        "user": user_response(user),
+    }), 200
 
 
 @auth_bp.post("/logout")
 def logout():
-    session.clear()
+    if current_user.is_authenticated:
+        logout_user()
 
     return jsonify({
         "status": "success",
-        "message": "Logged out successfully."
-    })
+        "message": "Logged out successfully.",
+    }), 200
 
 
 @auth_bp.get("/me")
-def current_user():
-    user_id = session.get("user_id")
-
-    if not user_id:
+def get_current_user():
+    if not current_user.is_authenticated:
         return jsonify({
             "status": "error",
-            "message": "Authentication required."
+            "message": "Authentication required.",
         }), 401
-
-    user = db.session.get(User, user_id)
-
-    if not user:
-        session.clear()
-        return jsonify({
-            "status": "error",
-            "message": "User not found."
-        }), 404
 
     return jsonify({
         "status": "success",
-        "user": {
-            "id": user.id,
-            "full_name": user.full_name,
-            "email": user.email,
-            "education_level": user.education_level
-        }
-    })
-
-    
+        "user": user_response(current_user),
+    }), 200
