@@ -1,24 +1,26 @@
+
+"""Rate limiting helpers for MathForStudent.
+
+This module reuses the shared limiter defined in
+backend.extensions. Do not create a second Limiter instance.
 """
-MathForStudent Rate Limiting Security
 
-Helps protect API endpoints from excessive requests.
-"""
-
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+from backend.extensions import limiter
 
 
-def create_limiter(app=None):
-    """Create and optionally initialize the rate limiter."""
+# Default limits to use when configuring the shared limiter.
+DEFAULT_RATE_LIMITS = [
+    "200 per day",
+    "50 per hour",
+]
 
-    limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=["200 per day", "50 per hour"],
-        storage_uri="memory://"
-    )
 
-    if app is not None:
-        limiter.init_app(app)
-
+def get_rate_limiter():
+    """Return the application's shared rate limiter."""
     return limiter
-  
+
+
+def get_default_rate_limits():
+    """Return a copy of the default request limits."""
+    return DEFAULT_RATE_LIMITS.copy()
+
