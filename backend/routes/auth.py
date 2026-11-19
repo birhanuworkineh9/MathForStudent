@@ -1,17 +1,21 @@
+
 """Authentication API routes for MathForStudent."""
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_login import login_user, logout_user, current_user
 
-from backend.extensions import db
+from backend.extensions import db, limiter
 from backend.models import User
 from backend.security.validators import validate_registration
+from backend.security.rate_limiter import get_auth_rate_limits
 
 
 auth_bp = Blueprint("auth", __name__)
 
 
 def user_response(user):
+    """Return safe public user information."""
+
     return {
         "id": user.id,
         "full_name": user.full_name,
@@ -21,8 +25,15 @@ def user_response(user):
 
 
 @auth_bp.post("/register")
+@limiter.limit(get_auth_rate_limits()[0])
 def register():
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "status": "error",
+            "message": "A valid JSON request is required.",
+        }), 400
 
     full_name = data.get("full_name", "")
     email = data.get("email", "")
@@ -61,6 +72,9 @@ def register():
         login_user(user)
     except Exception:
         db.session.rollback()
+        current_app.logger.exception(
+            "Account registration failed."
+        )
         return jsonify({
             "status": "error",
             "message": "Account creation failed. Please try again.",
@@ -74,6 +88,7 @@ def register():
 
 
 @auth_bp.post("/login")
+@limiter.limit(get_auth_rate_limits()[0])
 def login():
     if current_user.is_authenticated:
         return jsonify({
@@ -82,12 +97,23 @@ def login():
             "user": user_response(current_user),
         }), 200
 
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "status": "error",
+            "message": "A valid JSON request is required.",
+        }), 400
 
     email = data.get("email", "")
     password = data.get("password", "")
 
-    if not isinstance(email, str) or not isinstance(password, str):
+    if (
+        not isinstance(email, str)
+        or not isinstance(password, str)
+        or not email.strip()
+        or len(password) > 128
+    ):
         return jsonify({
             "status": "error",
             "message": "Invalid email or password.",
