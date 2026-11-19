@@ -4,27 +4,36 @@
 from flask_login import current_user
 
 
-# Roles supported by the application.
 ROLE_STUDENT = "student"
 ROLE_ADMIN = "admin"
 
 
 def is_authenticated() -> bool:
-    """Return True when a user is logged in."""
+    """Check whether a user is logged in."""
     return bool(current_user.is_authenticated)
 
 
-def has_role(role: str) -> bool:
-    """Check a user's role safely.
+def get_current_role() -> str | None:
+    """Return the current user's role, if authenticated."""
 
-    The current User model does not yet define a role field.
-    Until that field is added, users have no admin privileges.
-    """
-    if not is_authenticated() or not isinstance(role, str):
+    if not is_authenticated():
+        return None
+
+    role = getattr(current_user, "role", ROLE_STUDENT)
+
+    if not isinstance(role, str):
+        return ROLE_STUDENT
+
+    return role.strip().lower()
+
+
+def has_role(role: str) -> bool:
+    """Check whether the current user has the requested role."""
+
+    if not isinstance(role, str) or not role.strip():
         return False
 
-    user_role = getattr(current_user, "role", ROLE_STUDENT)
-    return user_role == role.strip().lower()
+    return get_current_role() == role.strip().lower()
 
 
 def is_student() -> bool:
@@ -38,17 +47,15 @@ def is_admin() -> bool:
 
 
 def can_access_user_data(user_id: int) -> bool:
-    """Allow users to access only their own data.
+    """Allow users to access only their own data."""
 
-    Administrators may access data only after an explicit role
-    field and administrator management system are implemented.
-    """
     if not is_authenticated():
         return False
 
     try:
         requested_user_id = int(user_id)
+        current_user_id = int(current_user.id)
     except (TypeError, ValueError):
         return False
 
-    return current_user.id == requested_user_id
+    return current_user_id == requested_user_id
