@@ -1,8 +1,6 @@
-
 """Authentication configuration for MathForStudent."""
 
 from flask import Flask
-from flask_login import LoginManager
 
 from backend.extensions import db, login_manager
 from backend.models import User
