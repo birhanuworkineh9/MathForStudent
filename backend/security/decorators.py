@@ -6,6 +6,8 @@ from functools import wraps
 from flask import jsonify
 from flask_login import current_user
 
+from backend.security.permissions import is_admin
+
 
 def login_required_api(function):
     """Require an authenticated user for an API endpoint."""
@@ -34,7 +36,7 @@ def admin_required(function):
                 "message": "Authentication required.",
             }), 401
 
-        if not getattr(current_user, "is_admin", False):
+        if not is_admin():
             return jsonify({
                 "status": "error",
                 "message": "Administrator permission required.",
@@ -43,4 +45,3 @@ def admin_required(function):
         return function(*args, **kwargs)
 
     return decorated_function
-
