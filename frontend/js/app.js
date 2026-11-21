@@ -1,209 +1,276 @@
+ 
 "use strict";
 
-const form = document.getElementById("questionForm");
-const subjectInput = document.getElementById("subjectSelect");
-const questionInput = document.getElementById("questionInput");
-const photoInput = document.getElementById("photoInput");
+document.addEventListener("DOMContentLoaded", () => {
+    const form = document.getElementById("questionForm");
+    const subjectInput = document.getElementById("subjectSelect");
+    const questionInput = document.getElementById("questionInput");
+    const photoInput = document.getElementById("photoInput");
+    const photoPreview = document.getElementById("photoPreview");
+    const solveButton = document.getElementById("solveButton");
+    const loadingMessage = document.getElementById("loadingMessage");
+    const errorMessage = document.getElementById("errorMessage");
+    const answerSection = document.getElementById("answerSection");
+    const answerContent = document.getElementById("answerContent");
 
-const solveButton = document.getElementById("solveButton");
-const loadingMessage = document.getElementById("loadingMessage");
-const errorMessage = document.getElementById("errorMessage");
-
-const photoPreview = document.getElementById("photoPreview");
-const answerSection = document.getElementById("answerSection");
-const answerContent = document.getElementById("answerContent");
-
-let selectedPhoto = null;
-
-function showError(message) {
-    errorMessage.textContent = message;
-    errorMessage.classList.remove("hidden");
-}
-
-function clearError() {
-    errorMessage.textContent = "";
-    errorMessage.classList.add("hidden");
-}
-
-function showLoading(isLoading) {
-    solveButton.disabled = isLoading;
-    loadingMessage.classList.toggle("hidden", !isLoading);
-}
-
-function addTextBlock(title, content) {
-    const block = document.createElement("div");
-    block.className = "answer-block";
-
-    const heading = document.createElement("h3");
-    heading.textContent = title;
-
-    const paragraph = document.createElement("p");
-    paragraph.textContent = content;
-
-    block.append(heading, paragraph);
-    answerContent.appendChild(block);
-}
-
-function displayAnswer(data) {
-    answerContent.replaceChildren();
-
-    if (data.calculation) {
-        addTextBlock(
-            "Method",
-            data.calculation.method || "Specialist calculation"
-        );
-
-        const steps = data.calculation.steps || [];
-
-        if (steps.length) {
-            const block = document.createElement("div");
-            block.className = "answer-block";
-
-            const heading = document.createElement("h3");
-            heading.textContent = "Step-by-step solution";
-
-            const list = document.createElement("ol");
-
-            steps.forEach(step => {
-                const item = document.createElement("li");
-                item.textContent = String(step);
-                list.appendChild(item);
-            });
-
-            block.append(heading, list);
-            answerContent.appendChild(block);
-        }
-
-        addTextBlock(
-            "Final Answer",
-            data.calculation.answer || "No final answer returned."
-        );
+    if (
+        !form || !subjectInput || !questionInput || !photoInput ||
+        !photoPreview || !solveButton || !loadingMessage ||
+        !errorMessage || !answerSection || !answerContent
+    ) {
+        console.error("MathForStudent: Required page elements are missing.");
+        return;
     }
 
-    if (data.explanation) {
-        addTextBlock("AI Explanation", data.explanation);
-    }
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
-    if (!data.calculation && data.message) {
-        addTextBlock("Information", data.message);
-    }
-
-    answerSection.classList.remove("hidden");
-}
-
-photoInput.addEventListener("change", () => {
-    clearError();
-
-    const file = photoInput.files[0];
-
-    selectedPhoto = file || null;
-    photoPreview.replaceChildren();
-
-    if (!file) return;
-
-    const allowedTypes = [
-        "image/jpeg",
+    const ALLOWED_IMAGE_TYPES = [
         "image/png",
+        "image/jpeg",
         "image/webp"
     ];
 
-    if (!allowedTypes.includes(file.type)) {
-        selectedPhoto = null;
-        photoInput.value = "";
-        showError("Please select a PNG, JPEG or WebP image.");
-        return;
+    let previewUrl = null;
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.classList.remove("hidden");
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-        selectedPhoto = null;
-        photoInput.value = "";
-        showError("Image must be smaller than 10 MB.");
-        return;
+    function hideError() {
+        errorMessage.textContent = "";
+        errorMessage.classList.add("hidden");
     }
 
-    const image = document.createElement("img");
-    image.alt = "Selected question preview";
+    function addResult(title, value) {
+        if (value === null || value === undefined || value === "") {
+            return;
+        }
 
-    const objectUrl = URL.createObjectURL(file);
-    image.src = objectUrl;
+        const heading = document.createElement("h3");
+        heading.textContent = title;
 
-    image.onload = () => URL.revokeObjectURL(objectUrl);
+        const content = document.createElement("div");
+        content.className = "result-content";
 
-    photoPreview.appendChild(image);
-});
+        if (Array.isArray(value)) {
+            const list = document.createElement("ol");
 
-form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+            value.forEach((item) => {
+                const li = document.createElement("li");
+                li.textContent = String(item);
+                list.appendChild(li);
+            });
 
-    clearError();
+            content.appendChild(list);
+        } else if (typeof value === "object") {
+            content.textContent = JSON.stringify(value, null, 2);
+        } else {
+            content.textContent = String(value);
+        }
 
-    const subject = subjectInput.value;
-    const question = questionInput.value.trim();
-
-    if (!subject) {
-        showError("Please select a subject.");
-        return;
+        answerContent.appendChild(heading);
+        answerContent.appendChild(content);
     }
 
-    if (!question) {
-        showError(
-            selectedPhoto
-                ? "Photo solving is not connected yet. Please type the question."
-                : "Please enter your question."
-        );
-        return;
-    }
+    function showAnswer(data) {
+        answerContent.replaceChildren();
 
-    const formData = new FormData();
-
-    formData.append("subject", subject);
-    formData.append("question", question);
-
-    showLoading(true);
-    answerSection.classList.add("hidden");
-
-    try {
-        const response = await fetch("/api/solve", {
-            method: "POST",
-            body: formData
-        });
-
-        const data = await response.json();
-
-        if (!response.ok || data.status === "error") {
-            throw new Error(
-                data.message || "Unable to solve this question."
+        if (data.recognized_question) {
+            addResult(
+                "Recognized Question",
+                data.recognized_question
             );
         }
 
-        if (
-            data.status === "needs_information" ||
-            data.status === "needs_ai"
-        ) {
+        const result = data.calculation || data.engine_result;
+
+        if (result) {
+            if (result.answer !== undefined) {
+                addResult("Final Answer", result.answer);
+            }
+
+            if (result.method) {
+                addResult("Method", result.method);
+            }
+
+            if (result.steps) {
+                addResult("Step-by-Step Solution", result.steps);
+            }
+        }
+
+        if (data.explanation) {
+            addResult("AI Explanation", data.explanation);
+        }
+
+        if (data.message) {
+            addResult("Message", data.message);
+        }
+
+        if (data.status === "needs_information") {
+            addResult(
+                "More Information Needed",
+                data.message || "Please provide more information."
+            );
+        }
+
+        if (data.ai_status === "needs_ai" && !data.explanation) {
+            addResult(
+                "AI Explanation",
+                "AI explanation is currently unavailable. The calculation result is shown above."
+            );
+        }
+
+        if (!answerContent.hasChildNodes()) {
+            addResult("Response", "No solution was returned.");
+        }
+
+        answerSection.classList.remove("hidden");
+
+        answerSection.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+
+    function clearPreview() {
+        photoPreview.replaceChildren();
+
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            previewUrl = null;
+        }
+    }
+
+    photoInput.addEventListener("change", () => {
+        hideError();
+        clearPreview();
+
+        const file = photoInput.files && photoInput.files[0];
+
+        if (!file) {
+            return;
+        }
+
+        if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
             showError(
-                data.message ||
-                "More information is required to solve this question."
+                "Please select a PNG, JPG, JPEG, or WEBP image."
+            );
+            photoInput.value = "";
+            return;
+        }
+
+        if (file.size > MAX_IMAGE_SIZE) {
+            showError("Image size must not exceed 5 MB.");
+            photoInput.value = "";
+            return;
+        }
+
+        const image = document.createElement("img");
+        image.alt = "Selected question preview";
+
+        previewUrl = URL.createObjectURL(file);
+        image.src = previewUrl;
+
+        image.style.maxWidth = "100%";
+        image.style.height = "auto";
+
+        photoPreview.appendChild(image);
+    });
+
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        hideError();
+        answerSection.classList.add("hidden");
+        answerContent.replaceChildren();
+
+        const subject = subjectInput.value.trim().toLowerCase();
+        const question = questionInput.value.trim();
+        const photo = photoInput.files && photoInput.files[0];
+
+        if (!subject) {
+            showError("Please select a subject.");
+            return;
+        }
+
+        if (!question && !photo) {
+            showError(
+                "Please type a question or upload a question photo."
             );
             return;
         }
 
-        displayAnswer(data);
+        if (question.length > 15000) {
+            showError(
+                "Your question is too long. Maximum length is 15,000 characters."
+            );
+            return;
+        }
 
-    } catch (error) {
-        showError(
-            error.message ||
-            "Connection failed. Please check your backend."
-        );
-    } finally {
-        showLoading(false);
-    }
-});
+        if (photo) {
+            if (!ALLOWED_IMAGE_TYPES.includes(photo.type)) {
+                showError(
+                    "Please select a PNG, JPG, JPEG, or WEBP image."
+                );
+                return;
+            }
 
-if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/service-worker.js")
-            .catch(() => {
-                console.warn("Service worker registration failed.");
+            if (photo.size > MAX_IMAGE_SIZE) {
+                showError("Image size must not exceed 5 MB.");
+                return;
+            }
+        }
+
+        const formData = new FormData();
+
+        formData.append("subject", subject);
+        formData.append("question", question);
+
+        if (photo) {
+            formData.append("photo", photo);
+        }
+
+        solveButton.disabled = true;
+        loadingMessage.classList.remove("hidden");
+
+        try {
+            const response = await fetch("/api/solve", {
+                method: "POST",
+                body: formData
             });
+
+            let data;
+
+            try {
+                data = await response.json();
+            } catch {
+                throw new Error(
+                    "The server returned an invalid response."
+                );
+            }
+
+            if (!response.ok || data.status === "error") {
+                throw new Error(
+                    data.message || "Unable to solve this question."
+                );
+            }
+
+            showAnswer(data);
+
+        } catch (error) {
+            console.error(
+                "MathForStudent request failed:",
+                error
+            );
+
+            showError(
+                error.message || "Network error. Please try again."
+            );
+
+        } finally {
+            solveButton.disabled = false;
+            loadingMessage.classList.add("hidden");
+        }
     });
-}
+});
