@@ -46,6 +46,7 @@ def create_app(config_class=Config):
     from backend.routes.auth import auth_bp
     from backend.routes.questions import questions_bp
     from backend.routes.progress import progress_bp
+    from backend.routes.history import history_bp
 
     # Register API routes.
     app.register_blueprint(
@@ -61,6 +62,11 @@ def create_app(config_class=Config):
     app.register_blueprint(
         progress_bp,
         url_prefix="/api/progress"
+    )
+
+    app.register_blueprint(
+        history_bp,
+        url_prefix="/api/history"
     )
 
     # Frontend home page.
@@ -172,7 +178,3 @@ if __name__ == "__main__":
         port=5000,
         debug=False
     )
-
-
-
-
