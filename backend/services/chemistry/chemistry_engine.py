@@ -157,8 +157,7 @@ def solve_molar_mass(question):
 def solve_stoichiometry(question):
     """
     Convert a supplied mass into moles when a formula is provided.
-    Example:
-    calculate moles in 18 g H2O
+    Example: calculate moles in 18 g H2O
     """
     match = re.search(
         r"(?:moles?|amount of substance).*?(\d+(?:\.\d+)?)\s*g\s+([A-Z][A-Za-z0-9()]*)",
@@ -180,6 +179,13 @@ def solve_stoichiometry(question):
 
         moles = mass / molar
 
+        # Display two significant figures and preserve a decimal
+        # for whole-number results, e.g. 1.0 instead of 1.
+        moles_text = f"{moles:.2g}"
+
+        if "." not in moles_text and "e" not in moles_text.lower():
+            moles_text += ".0"
+
         return chemistry_result(
             "Mass-to-moles stoichiometry",
             [
@@ -187,9 +193,9 @@ def solve_stoichiometry(question):
                 f"Formula = {formula}",
                 f"Molar mass = {molar:.3f} g/mol",
                 "Use n = m / M.",
-                f"n = {mass} / {molar:.3f} = {moles:.2g} mol"
+                f"n = {mass} / {molar:.3f} = {moles_text} mol"
             ],
-            f"{moles:.2g} mol"
+            f"{moles_text} mol"
         )
 
     except ValueError as error:
@@ -288,7 +294,6 @@ def balance_equation(equation):
     if not basis:
         raise ValueError("No balancing solution was found.")
 
-    # A one-dimensional nullspace gives a unique basic ratio.
     if len(basis) != 1:
         raise ValueError(
             "This equation has multiple possible balancing solutions."
