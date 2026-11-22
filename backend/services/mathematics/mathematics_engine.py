@@ -1,3 +1,4 @@
+
 import re
 import sympy as sp
 
@@ -21,22 +22,65 @@ def result(method, steps, answer):
 
 
 def clean_expression(expression):
+    """Normalize common mathematical notation."""
     expression = expression.strip()
     expression = expression.replace("^", "**")
     expression = expression.replace("×", "*")
     expression = expression.replace("÷", "/")
+    expression = expression.replace("−", "-")
+
+    # Convert implicit multiplication: 2x -> 2*x
+    expression = re.sub(
+        r"(?<=\d)(?=[a-zA-Z(])",
+        "*",
+        expression
+    )
+
+    # Convert x(y+1) and (x+1)(x-1)
+    expression = re.sub(
+        r"(?<=[a-zA-Z)])(?=\()",
+        "*",
+        expression
+    )
+
+    # Convert xy -> x*y, but preserve known function names
+    expression = re.sub(
+        r"(?<=[xyz])(?=[xyz])",
+        "*",
+        expression
+    )
+
     return expression
 
 
+def parse_expression(expression):
+    """Parse a mathematical expression using known symbols."""
+    expression = clean_expression(expression)
+
+    local_symbols = {
+        "x": x,
+        "y": y,
+        "z": z,
+        "pi": pi,
+        "sqrt": sqrt,
+        "sin": sin,
+        "cos": cos,
+        "tan": tan,
+        "log": log,
+        "exp": exp
+    }
+
+    return sp.sympify(
+        expression,
+        locals=local_symbols
+    )
+
+
 def solve_arithmetic(question):
-    """
-    Evaluate safe arithmetic expressions using SymPy.
-    """
+    """Evaluate a basic arithmetic expression."""
     text = clean_expression(question)
 
-    allowed = re.fullmatch(r"[0-9+\-*/().\s%*]+", text)
-
-    if not allowed:
+    if not re.fullmatch(r"[0-9+\-*/().\s%]+", text):
         return None
 
     text = text.replace("%", "/100")
@@ -51,8 +95,8 @@ def solve_arithmetic(question):
             "Arithmetic",
             [
                 f"Original expression: {question}",
-                "Convert the expression into mathematical operations.",
-                f"Evaluate: {answer}"
+                "Apply the order of mathematical operations.",
+                f"Calculate the result: {answer}"
             ],
             answer
         )
@@ -62,11 +106,7 @@ def solve_arithmetic(question):
 
 
 def solve_equation(question):
-    """
-    Examples:
-    solve 2*x + 5 = 15
-    x^2 - 5*x + 6 = 0
-    """
+    """Solve equations for x."""
     text = question.lower().strip()
 
     text = re.sub(
@@ -75,30 +115,33 @@ def solve_equation(question):
         text
     )
 
-    text = clean_expression(text)
-
     if "=" not in text:
         return None
 
     left, right = text.split("=", 1)
 
     try:
-        equation = Eq(
-            sp.sympify(left),
-            sp.sympify(right)
-        )
+        left_expr = parse_expression(left)
+        right_expr = parse_expression(right)
 
+        equation = Eq(left_expr, right_expr)
         solutions = solve(equation, x)
+
+        if not solutions:
+            answer = "No solution found"
+        else:
+            answer = solutions
 
         return result(
             "Equation solving",
             [
                 f"Given equation: {left} = {right}",
-                "Move the right-hand side to the left.",
-                "Solve the resulting equation for x.",
+                "Write both sides as mathematical expressions.",
+                "Move all terms to one side of the equation.",
+                "Solve the equation for x.",
                 f"Solutions: {solutions}"
             ],
-            solutions
+            answer
         )
 
     except Exception:
@@ -106,9 +149,7 @@ def solve_equation(question):
 
 
 def solve_derivative(question):
-    """
-    Example: derivative of x^3 + 2*x^2
-    """
+    """Differentiate an expression with respect to x."""
     text = question.lower()
 
     match = re.search(
@@ -119,18 +160,16 @@ def solve_derivative(question):
     if not match:
         return None
 
-    expression = clean_expression(match.group(1))
-
     try:
-        function = sp.sympify(expression)
+        function = parse_expression(match.group(1))
         answer = diff(function, x)
 
         return result(
             "Differentiation",
             [
                 f"Given function: f(x) = {function}",
-                "Apply differentiation rules.",
-                f"Differentiate with respect to x: {answer}"
+                "Differentiate with respect to x.",
+                f"Derivative: {answer}"
             ],
             answer
         )
@@ -140,9 +179,7 @@ def solve_derivative(question):
 
 
 def solve_integral(question):
-    """
-    Example: integrate x^2
-    """
+    """Integrate an expression with respect to x."""
     text = question.lower()
 
     match = re.search(
@@ -153,18 +190,16 @@ def solve_integral(question):
     if not match:
         return None
 
-    expression = clean_expression(match.group(1))
-
     try:
-        function = sp.sympify(expression)
+        function = parse_expression(match.group(1))
         answer = integrate(function, x)
 
         return result(
             "Integration",
             [
                 f"Given function: {function}",
-                "Apply integration rules.",
-                f"Integrate with respect to x: {answer} + C"
+                "Integrate with respect to x.",
+                f"Indefinite integral: {answer} + C"
             ],
             f"{answer} + C"
         )
@@ -174,6 +209,7 @@ def solve_integral(question):
 
 
 def solve_factorization(question):
+    """Factor an algebraic expression."""
     match = re.search(
         r"(?:factor|factorize)\s+(.+)",
         question.lower()
@@ -183,17 +219,14 @@ def solve_factorization(question):
         return None
 
     try:
-        expression = sp.sympify(
-            clean_expression(match.group(1))
-        )
-
+        expression = parse_expression(match.group(1))
         answer = factor(expression)
 
         return result(
             "Factorization",
             [
                 f"Original expression: {expression}",
-                "Find common factors or algebraic factors.",
+                "Find the algebraic factors.",
                 f"Factorized expression: {answer}"
             ],
             answer
@@ -204,10 +237,7 @@ def solve_factorization(question):
 
 
 def solve_matrix(question):
-    """
-    Example:
-    matrix [[1,2],[3,4]]
-    """
+    """Calculate the determinant of a supplied matrix."""
     match = re.search(
         r"matrix\s*(\[\[.*\]\])",
         question.lower()
@@ -219,6 +249,12 @@ def solve_matrix(question):
     try:
         values = sp.sympify(match.group(1))
         matrix = Matrix(values)
+
+        if matrix.rows != matrix.cols:
+            return {
+                "status": "error",
+                "message": "The matrix must be square to calculate its determinant."
+            }
 
         determinant = matrix.det()
 
@@ -237,6 +273,7 @@ def solve_matrix(question):
 
 
 def solve_mathematics(question):
+    """Main mathematics solving entry point."""
     if not question or not question.strip():
         return {
             "status": "error",
