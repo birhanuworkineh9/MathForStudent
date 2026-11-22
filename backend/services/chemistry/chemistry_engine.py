@@ -1,5 +1,11 @@
+
 import re
 from collections import Counter
+from functools import reduce
+from math import gcd
+
+from sympy import Matrix, lcm
+
 
 ATOMIC_MASSES = {
     "H": 1.008,
@@ -181,9 +187,9 @@ def solve_stoichiometry(question):
                 f"Formula = {formula}",
                 f"Molar mass = {molar:.3f} g/mol",
                 "Use n = m / M.",
-                f"n = {mass} / {molar:.3f} = {moles:.4f} mol"
+                f"n = {mass} / {molar:.3f} = {moles:.2g} mol"
             ],
-            f"{moles:.4f} mol"
+            f"{moles:.2g} mol"
         )
 
     except ValueError as error:
@@ -220,9 +226,6 @@ def solve_chemistry(question):
             "and conditions where relevant."
         )
     }
-from functools import reduce
-from math import gcd
-from sympy import Matrix, lcm
 
 
 def balance_equation(equation):
@@ -233,18 +236,26 @@ def balance_equation(equation):
     equation = equation.replace("→", "->").replace("=", "->")
 
     if equation.count("->") != 1:
-        raise ValueError("Use one reaction arrow, for example H2 + O2 -> H2O.")
+        raise ValueError(
+            "Use one reaction arrow, for example H2 + O2 -> H2O."
+        )
 
     left_text, right_text = equation.split("->")
 
     reactants = [x.strip() for x in left_text.split("+")]
     products = [x.strip() for x in right_text.split("+")]
 
-    if not reactants or not products or any(not x for x in reactants + products):
+    if (
+        not reactants
+        or not products
+        or any(not x for x in reactants + products)
+    ):
         raise ValueError("The chemical equation is incomplete.")
 
     if len(reactants) + len(products) > 12:
-        raise ValueError("This equation is too large for this balancing engine.")
+        raise ValueError(
+            "This equation is too large for this balancing engine."
+        )
 
     formulas = reactants + products
     compositions = [parse_formula(formula) for formula in formulas]
@@ -305,7 +316,9 @@ def balance_equation(equation):
     ]
 
     if any(value <= 0 for value in coefficients):
-        raise ValueError("A positive balancing solution was not found.")
+        raise ValueError(
+            "A positive balancing solution was not found."
+        )
 
     balanced_left = " + ".join(
         f"{coefficients[i]}{reactants[i]}"
