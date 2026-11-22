@@ -1,5 +1,7 @@
 
 import re
+from collections import Counter
+
 import sympy as sp
 from sympy import (
     symbols, Eq, solve, simplify, expand, factor,
@@ -285,6 +287,7 @@ def solve_statistics(question):
         question,
         re.IGNORECASE
     )
+
     if not match:
         return None
 
@@ -299,32 +302,53 @@ def solve_statistics(question):
             return None
 
         ordered = sorted(values)
-        mean_value = sum(values) / len(values)
-        middle = len(ordered) // 2
+        count = len(values)
+        total = sum(values)
 
-        median_value = (
-            ordered[middle]
-            if len(ordered) % 2
-            else (ordered[middle - 1] + ordered[middle]) / 2
-        )
+        # Mean
+        mean_value = total / count
 
-        modes = sp.stats.mode(values)
+        # Median
+        middle = count // 2
+
+        if count % 2 == 1:
+            median_value = ordered[middle]
+        else:
+            median_value = (
+                ordered[middle - 1] + ordered[middle]
+            ) / 2
+
+        # Mode
+        frequencies = Counter(values)
+        highest_frequency = max(frequencies.values())
+
+        if highest_frequency == 1:
+            mode_value = "No mode"
+        else:
+            mode_value = sorted(
+                value
+                for value, frequency in frequencies.items()
+                if frequency == highest_frequency
+            )
 
         return make_result(
             "Statistics",
             [
-                f"Step 1: Data values: {values}",
-                f"Step 2: Arrange values: {ordered}",
-                f"Step 3: Mean = sum / count = {mean_value}",
-                f"Step 4: Median = {median_value}",
-                f"Step 5: Mode = {modes}"
+                f"Step 1: Given data: {values}",
+                f"Step 2: Arrange the data in ascending order: {ordered}",
+                f"Step 3: Find the total: {total}",
+                f"Step 4: Count the observations: {count}",
+                f"Step 5: Mean = total / count = {total} / {count} = {mean_value}",
+                f"Step 6: Median = middle value = {median_value}",
+                f"Step 7: Mode = most frequent value(s) = {mode_value}"
             ],
             {
                 "mean": mean_value,
                 "median": median_value,
-                "mode": modes
+                "mode": mode_value
             }
         )
+
     except Exception:
         return None
 
@@ -396,4 +420,3 @@ def solve_mathematics(question):
             "interpretation. Please provide the complete question."
         )
     }
-
