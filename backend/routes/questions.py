@@ -27,7 +27,10 @@ ENGINE_MAP = {
 
 
 def _error(message, status_code=400):
-    return jsonify({"status": "error", "message": message}), status_code
+    return jsonify({
+        "status": "error",
+        "message": message,
+    }), status_code
 
 
 @questions_bp.post("/solve")
@@ -36,6 +39,7 @@ def solve_question():
     subject = request.form.get("subject", "").strip().lower()
     typed_question = request.form.get("question", "").strip()
     photo = request.files.get("photo")
+
     saved_path = None
     recognized_question = ""
 
@@ -45,8 +49,10 @@ def solve_question():
     try:
         if photo and photo.filename:
             saved_path = save_uploaded_image(
-                photo, current_app.config["UPLOAD_FOLDER"]
+                photo,
+                current_app.config["UPLOAD_FOLDER"],
             )
+
             ocr_result = extract_question_text(saved_path)
 
             if not isinstance(ocr_result, dict):
@@ -54,11 +60,13 @@ def solve_question():
 
             if ocr_result.get("status") != "success":
                 status = ocr_result.get("status", "error")
+
                 return jsonify({
                     "status": status,
                     "subject": subject,
                     "message": ocr_result.get(
-                        "message", "Could not read the image."
+                        "message",
+                        "Could not read the image.",
                     ),
                 }), 200 if status == "needs_information" else 400
 
@@ -67,17 +75,25 @@ def solve_question():
             ).strip()
 
         question = "\n\n".join(
-            part for part in (typed_question, recognized_question) if part
+            part
+            for part in (typed_question, recognized_question)
+            if part
         )
 
         valid, error = validate_question(subject, question)
+
         if not valid:
-            return _error(error or "Enter a question or upload a readable image.")
+            return _error(
+                error or "Enter a question or upload a readable image."
+            )
 
         engine_result = ENGINE_MAP[subject](question)
 
         if not isinstance(engine_result, dict):
-            return _error("Invalid solving engine response.", 500)
+            return _error(
+                "Invalid solving engine response.",
+                500,
+            )
 
         response_base = {
             "subject": subject,
@@ -91,14 +107,60 @@ def solve_question():
                 "status": "error",
             }), 400
 
-        if engine_result.get("status") in (
-            "needs_information", "needs_ai"
-        ):
-            return jsonify({**response_base, **engine_result}), 200
+        engine_status = engine_result.get("status")
 
-        ai_result = explain_with_ai(question, subject, engine_result)
+        # Ask the student for missing information instead of guessing.
+        if engine_status == "needs_information":
+            return jsonify({
+                **response_base,
+                **engine_result,
+            }), 200
+
+        # Send unsupported specialist-engine questions to the AI tutor.
+        if engine_status == "needs_ai":
+            ai_result = explain_with_ai(question, subject)
+
+            if not isinstance(ai_result, dict):
+                ai_result = {
+                    "status": "error",
+                    "message": "The AI tutor returned an invalid response.",
+                }
+
+            if ai_result.get("status") == "success":
+                return jsonify({
+                    "status": "success",
+                    **response_base,
+                    "calculation": None,
+                    "explanation": ai_result.get("explanation"),
+                    "ai_status": "success",
+                    "ai_message": None,
+                }), 200
+
+            return jsonify({
+                "status": "needs_ai",
+                **response_base,
+                "calculation": None,
+                "explanation": None,
+                "ai_status": ai_result.get("status", "needs_ai"),
+                "ai_message": ai_result.get(
+                    "message",
+                    "The AI tutor is temporarily unavailable.",
+                ),
+            }), 200
+
+        # For questions solved by the specialist engine, ask AI to explain.
+        ai_result = explain_with_ai(
+            question,
+            subject,
+            engine_result,
+        )
+
         if not isinstance(ai_result, dict):
-            ai_result = {"status": "error", "explanation": None}
+            ai_result = {
+                "status": "error",
+                "explanation": None,
+                "message": "The AI tutor returned an invalid response.",
+            }
 
         return jsonify({
             "status": "success",
@@ -111,19 +173,29 @@ def solve_question():
 
     except ValueError as error:
         return _error(str(error), 400)
+
     except OSError:
         current_app.logger.exception("Image processing failed.")
-        return _error("Unable to process the uploaded image.", 500)
+        return _error(
+            "Unable to process the uploaded image.",
+            500,
+        )
+
     except Exception:
         current_app.logger.exception("Unexpected solving error.")
-        return _error("An unexpected error occurred.", 500)
+        return _error(
+            "An unexpected error occurred.",
+            500,
+        )
+
     finally:
         if saved_path:
             try:
                 Path(saved_path).unlink(missing_ok=True)
             except OSError:
                 current_app.logger.warning(
-                    "Could not remove temporary image: %s", saved_path
+                    "Could not remove temporary image: %s",
+                    saved_path,
                 )
 
 
@@ -134,11 +206,13 @@ def upload_question():
         return _error("No image was uploaded.")
 
     saved_path = None
+
     try:
         saved_path = save_uploaded_image(
             request.files["photo"],
             current_app.config["UPLOAD_FOLDER"],
         )
+
         result = extract_question_text(saved_path)
 
         if not isinstance(result, dict):
@@ -155,14 +229,25 @@ def upload_question():
 
     except ValueError as error:
         return _error(str(error), 400)
+
     except OSError:
         current_app.logger.exception("Image processing failed.")
-        return _error("Unable to process the uploaded image.", 500)
+        return _error(
+            "Unable to process the uploaded image.",
+            500,
+        )
+
     finally:
         if saved_path:
             try:
                 Path(saved_path).unlink(missing_ok=True)
             except OSError:
                 current_app.logger.warning(
-                    "Could not remove temporary image: %s", saved_path
+                    "Could not remove temporary image: %s",
+                    saved_path,
                 )
+
+
+            
+
+
